@@ -33,36 +33,55 @@ const Login = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-      <h2 className="text-2xl font-semibold mb-4">Login</h2>
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          required
-          disabled={isLoading}
-          className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          required
-          disabled={isLoading}
-          className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        <button 
-          type="submit" 
-          disabled={isLoading}
-          className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 disabled:opacity-50"
-        >
-          {isLoading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-bold text-blue-600 mb-2">Collaborative Notes App</h1>
+        <p className="text-gray-600">Work together, create together</p>
+      </div>
+      
+      <div className="bg-white p-8 rounded-xl shadow-xl max-w-md w-full mx-4">
+        <h2 className="text-2xl font-semibold mb-6 text-center text-gray-800">Welcome Back</h2>
+        
+        {error && (
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">
+            {error}
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              required
+              disabled={isLoading}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+            />
+          </div>
+          
+          <div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              disabled={isLoading}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+            />
+          </div>
+          
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 disabled:opacity-50 font-medium"
+          >
+            {isLoading ? 'Logging in...' : 'Sign In'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };

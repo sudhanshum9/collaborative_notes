@@ -27,7 +27,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', get_random_secret_key())
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
-DEBUG = True
+# DEBUG = True
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost').split(',')
 
 # Security settings - only enable in production
@@ -194,7 +194,7 @@ DJOSER = {
     },
     'PASSWORD_RESET_CONFIRM_URL': 'password/reset/confirm/{uid}/{token}',
     'ACTIVATION_URL': 'activate/{uid}/{token}',
-    'SEND_ACTIVATION_EMAIL': True,
+    'SEND_ACTIVATION_EMAIL': False,
 }
 
 

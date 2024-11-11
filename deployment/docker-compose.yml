@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13
+    container_name: notes_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-notes2}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - collaborative_network
+    ports:
+      - "5431:5432"  # Maps host port 5431 to container port 5432 (default for PostgreSQL)
+
+  notes_app_service:
+    image: sudhanshu/notes_app:v1
+    container_name: notes_app
+    ports:
+      - "8000:8000"
+      - "8001:8001"  # Add port for Daphne/ASGI
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-defaultsecretkey}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost}
+      DB_NAME: ${DB_NAME:-notes2}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: db
+      DB_PORT: 5432  # Internal container port for PostgreSQL
+      # REDIS_URL: redis://redis:6379
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3001}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD}
+    depends_on:
+      - db
+      # - redis
+    networks:
+      - collaborative_network
+
+volumes:
+  postgres_data:
+
+networks:
+  collaborative_network:
