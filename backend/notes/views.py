@@ -1,8 +1,8 @@
 # notes/views.py
 from rest_framework import views, viewsets, status, permissions
 from rest_framework.permissions import IsAuthenticated
-from .models import Note, Team
-from .serializers import NoteSerializer
+from .models import Note, Team, Category
+from .serializers import NoteSerializer, CategorySerializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
@@ -34,6 +34,16 @@ class UserListView(views.APIView):
         users = User.objects.all()
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    serializer_class = CategorySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Category.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
     
 class NoteViewSet(viewsets.ModelViewSet):
     queryset = Note.objects.all()
@@ -51,6 +61,16 @@ class NoteViewSet(viewsets.ModelViewSet):
         
     def update(self, request, *args, **kwargs):
         note = self.get_object()
+        
+        # Handle category creation/assignment
+        category_name = request.data.get('category')
+        if category_name:
+            category, created = Category.objects.get_or_create(
+                name=category_name,
+                user=request.user
+            )
+            request.data['category'] = category.id
+            
         serializer = self.get_serializer(note, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -74,7 +94,16 @@ class NoteViewSet(viewsets.ModelViewSet):
         return Response(updated_note, status=status.HTTP_200_OK)
     
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        # Handle category creation/assignment for new notes
+        category_name = self.request.data.get('category')
+        if category_name:
+            category, created = Category.objects.get_or_create(
+                name=category_name,
+                user=self.request.user
+            )
+            serializer.save(user=self.request.user, category=category)
+        else:
+            serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'])
     def share_with_team(self, request, pk=None):

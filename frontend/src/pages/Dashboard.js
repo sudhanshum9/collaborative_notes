@@ -15,6 +15,8 @@ const Dashboard = () => {
   const [invitations, setInvitations] = useState([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [category, setCategory] = useState('');
+  const [newCategory, setNewCategory] = useState('');
   const [editingNote, setEditingNote] = useState(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
@@ -25,6 +27,35 @@ const Dashboard = () => {
   const [selectedTeamId, setSelectedTeamId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
+  const [categories, setCategories] = useState([]);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState(null);
+
+  // Add new category
+  const handleAddCategory = async () => {
+    if (newCategory) {
+      try {
+        const response = await axios.post('http://localhost:8000/api/categories/', 
+          { name: newCategory },
+          { headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` }}
+        );
+        setCategories([...categories, response.data]);
+        setNewCategory('');
+        setCategoryModalOpen(false);
+        toast.success('Category added successfully');
+      } catch (error) {
+        toast.error('Error adding category');
+      }
+    }
+  };
+
+  // Filter notes by category
+  const filteredNotes = notes.filter(note => {
+    if (selectedCategoryFilter === 'all') return true;
+    return note.category === selectedCategoryFilter;
+  });
 
   // Memoized fetch functions
   const fetchUserProfile = useCallback(async () => {
@@ -46,6 +77,17 @@ const Dashboard = () => {
       setNotes(response.data);
     } catch (error) {
       toast.error("Error fetching notes");
+    }
+  }, []);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/categories/', {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      setCategories(response.data);
+    } catch (error) {
+      toast.error("Error fetching categories");
     }
   }, []);
 
@@ -78,7 +120,8 @@ const Dashboard = () => {
         fetchUserProfile(),
         fetchNotes(),
         fetchTeams(),
-        fetchInvitations()
+        fetchInvitations(),
+        fetchCategories()
       ]);
       setIsLoading(false);
     };
@@ -104,12 +147,19 @@ const Dashboard = () => {
       const data = JSON.parse(event.data);
       const { id, title, content } = data;
 
-      setNotes((prevNotes) => 
-        prevNotes.map((note) =>
-          note.id === id ? { ...note, title, content } : note
-        )
-      );
-      toast.info('Note updated in real-time');
+      if (title === null && content === null) {
+        // Note was deleted
+        setNotes(prevNotes => prevNotes.filter(note => note.id !== id));
+        toast.info('Note deleted in real-time');
+      } else {
+        // Note was updated
+        setNotes((prevNotes) => 
+          prevNotes.map((note) =>
+            note.id === id ? { ...note, title, content } : note
+          )
+        );
+        toast.info('Note updated in real-time');
+      }
     };
 
     return () => {
@@ -117,7 +167,7 @@ const Dashboard = () => {
         ws.close();
       }
     };
-  }, [fetchUserProfile, fetchNotes, fetchTeams, fetchInvitations]);
+  }, [fetchUserProfile, fetchNotes, fetchTeams, fetchInvitations, fetchCategories]);
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
@@ -126,7 +176,7 @@ const Dashboard = () => {
 
   const handleAddOrUpdateNote = async (e) => {
     e.preventDefault();
-    const noteData = { title, content };
+    const noteData = { title, content, category };
     try {
       if (editingNote) {
         const response = await axios.put(`http://localhost:8000/api/notes/${editingNote.id}/`, noteData, {
@@ -143,6 +193,7 @@ const Dashboard = () => {
       }
       setTitle('');
       setContent('');
+      setCategory('');
       setNoteModalOpen(false);
       setEditingNote(null);
     } catch (error) {
@@ -154,15 +205,37 @@ const Dashboard = () => {
     setEditingNote(note);
     setTitle(note.title);
     setContent(note.content);
+    setCategory(note.category || '');
     setNoteModalOpen(true);
   };
 
-  const handleDeleteNote = async (id) => {
+  const handleDeleteClick = (note) => {
+    setNoteToDelete(note);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteNote = async () => {
+    if (!noteToDelete) return;
+    
     try {
-      await axios.delete(`http://localhost:8000/api/notes/${id}/`, {
+      await axios.delete(`http://localhost:8000/api/notes/${noteToDelete.id}/`, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
-      setNotes(notes.filter((note) => note.id !== id));
+      
+      // Send WebSocket message for deletion
+      const ws = new WebSocket('ws://localhost:8001/ws/notes/');
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          id: noteToDelete.id,
+          title: null,
+          content: null
+        }));
+        ws.close();
+      };
+
+      setNotes(notes.filter((note) => note.id !== noteToDelete.id));
+      setDeleteModalOpen(false);
+      setNoteToDelete(null);
       toast.success('Note deleted successfully');
     } catch (error) {
       toast.error('Error deleting note');
@@ -304,26 +377,58 @@ const Dashboard = () => {
           {wsConnected ? 'Connected' : 'Disconnected'}
         </div>
 
-        {/* Add Note Button */}
-        <button
-          onClick={() => {
-            setEditingNote(null);
-            setTitle('');
-            setContent('');
-            setNoteModalOpen(true);
-          }}
-          className="mb-6 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-md w-full md:w-auto justify-center md:justify-start"
-        >
-          <FiPlus />
-          <span>Add New Note</span>
-        </button>
+        {/* Action Buttons */}
+        <div className="flex gap-4 mb-6">
+          <button
+            onClick={() => {
+              setEditingNote(null);
+              setTitle('');
+              setContent('');
+              setCategory('');
+              setNoteModalOpen(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-md"
+          >
+            <FiPlus />
+            <span>Add New Note</span>
+          </button>
+
+          <button
+            onClick={() => setCategoryModalOpen(true)}
+            className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-md"
+          >
+            <FiPlus />
+            <span>Add Category</span>
+          </button>
+        </div>
+
+        {/* Category Filter */}
+        <div className="mb-6">
+          <select
+            value={selectedCategoryFilter}
+            onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
 
         {/* Notes Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {notes.map((note) => (
+          {filteredNotes.map((note) => (
             <div key={note.id} className="bg-white p-4 md:p-6 rounded-xl shadow-md hover:shadow-xl transition-shadow">
               <div className="mb-4 md:mb-6">
-                <h4 className="text-xl md:text-2xl font-bold mb-2 md:mb-3">{note.title}</h4>
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="text-xl md:text-2xl font-bold">{note.title}</h4>
+                  {note.category && (
+                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                      {categories.find(cat => cat.id === note.category)?.name}
+                    </span>
+                  )}
+                </div>
                 <p className="text-gray-700 text-sm md:text-base">{note.content}</p>
               </div>
               <div className="flex justify-end space-x-3 md:space-x-4">
@@ -342,7 +447,7 @@ const Dashboard = () => {
                   <FiShare2 />
                 </button>
                 <button 
-                  onClick={() => handleDeleteNote(note.id)} 
+                  onClick={() => handleDeleteClick(note)} 
                   className="text-red-500 hover:text-red-600 transition-colors"
                   title="Delete"
                 >
@@ -374,6 +479,16 @@ const Dashboard = () => {
                 className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows="4"
               />
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select Category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
               <div className="flex justify-end space-x-4">
                 <button 
                   type="button" 
@@ -390,6 +505,65 @@ const Dashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md mx-4">
+            <h3 className="text-xl font-semibold mb-4">Confirm Delete</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "{noteToDelete?.title}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button 
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setNoteToDelete(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleDeleteNote}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Modal */}
+      {categoryModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-4 md:p-8 rounded-lg shadow-lg w-full max-w-md mx-4">
+            <h3 className="text-xl md:text-2xl font-semibold mb-4">Add New Category</h3>
+            <input
+              type="text"
+              placeholder="Category Name"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <div className="flex justify-end space-x-4">
+              <button 
+                onClick={() => setCategoryModalOpen(false)} 
+                className="text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAddCategory}
+                className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg transition-colors"
+              >
+                Add Category
+              </button>
+            </div>
           </div>
         </div>
       )}

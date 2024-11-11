@@ -47,7 +47,7 @@ class NoteConsumer(AsyncJsonWebsocketConsumer):
                 'content': content,
             }
         )            
-        
+
     async def update(self, event):
         # Send updated note data to WebSocket clients
         logger.info("Received update event in WebSocket consumer") 

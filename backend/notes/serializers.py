@@ -1,10 +1,16 @@
 # notes/serializers.py
 from rest_framework import serializers
-from .models import Note, Team, Invitation
+from .models import Note, Team, Invitation, Category
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'user']
+        read_only_fields = ['user']
 
 class NoteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,5 +40,3 @@ class InvitationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invitation
         fields = ['id', 'email', 'team', 'invited_by', 'accepted']
-        
-        

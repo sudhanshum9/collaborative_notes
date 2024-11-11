@@ -4,11 +4,22 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+class Category(models.Model):
+    name = models.CharField(max_length=50)
+    user = models.ForeignKey(User, related_name="categories", on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = "Categories"
+        unique_together = ['name', 'user']  # Make name unique per user instead of globally unique
+
 class Note(models.Model):
     user = models.ForeignKey(User, related_name="notes", on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     content = models.TextField()
-    category = models.CharField(max_length=50, blank=True, null=True)
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="notes")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
