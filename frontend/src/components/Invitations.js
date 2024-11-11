@@ -5,11 +5,14 @@ import axios from 'axios';
 const Invitations = () => {
   const [invitations, setInvitations] = useState([]);
 
+  // Get API base URL from environment variable
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
   // Fetch pending invitations
   useEffect(() => {
     const fetchInvitations = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/invitations/', {
+        const response = await axios.get(`${API_URL}/api/invitations/`, {
           headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
         setInvitations(response.data);
@@ -19,12 +22,12 @@ const Invitations = () => {
     };
 
     fetchInvitations();
-  }, []);
+  }, [API_URL]);
 
   // Handle accepting an invitation
   const handleAcceptInvitation = async (invitationId) => {
     try {
-      await axios.post(`http://localhost:8000/api/invitations/${invitationId}/accept/`, {}, {
+      await axios.post(`${API_URL}/api/invitations/${invitationId}/accept/`, {}, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       alert("Invitation accepted!");

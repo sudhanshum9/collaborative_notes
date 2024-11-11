@@ -8,6 +8,10 @@ import CreateTeamModal from '../components/CreateTeamModal';
 import { FiPlus, FiEdit2, FiShare2, FiTrash2, FiLogOut, FiMenu } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 
+// Get API URL from environment variable
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8001';
+
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -37,7 +41,7 @@ const Dashboard = () => {
   const handleAddCategory = async () => {
     if (newCategory) {
       try {
-        const response = await axios.post('http://localhost:8000/api/categories/', 
+        const response = await axios.post(`${API_URL}/api/categories/`, 
           { name: newCategory },
           { headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` }}
         );
@@ -60,7 +64,7 @@ const Dashboard = () => {
   // Memoized fetch functions
   const fetchUserProfile = useCallback(async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/profile/', {
+      const response = await axios.get(`${API_URL}/api/profile/`, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       setUser(response.data);
@@ -71,7 +75,7 @@ const Dashboard = () => {
 
   const fetchNotes = useCallback(async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/notes/', {
+      const response = await axios.get(`${API_URL}/api/notes/`, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       setNotes(response.data);
@@ -82,7 +86,7 @@ const Dashboard = () => {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/categories/', {
+      const response = await axios.get(`${API_URL}/api/categories/`, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       setCategories(response.data);
@@ -93,7 +97,7 @@ const Dashboard = () => {
 
   const fetchTeams = useCallback(async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/teams/', {
+      const response = await axios.get(`${API_URL}/api/teams/`, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       setTeams(response.data);
@@ -104,7 +108,7 @@ const Dashboard = () => {
 
   const fetchInvitations = useCallback(async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/invitations/', {
+      const response = await axios.get(`${API_URL}/api/invitations/`, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       setInvitations(response.data);
@@ -127,7 +131,7 @@ const Dashboard = () => {
     };
     fetchData();
 
-    const ws = new WebSocket('ws://localhost:8001/ws/notes/');
+    const ws = new WebSocket(`${WS_URL}/ws/notes/`);
     
     ws.onopen = () => {
       setWsConnected(true);
@@ -138,7 +142,7 @@ const Dashboard = () => {
       setWsConnected(false);
       toast.warning('Real-time updates disconnected. Reconnecting...');
       setTimeout(() => {
-        const newWs = new WebSocket('ws://localhost:8001/ws/notes/');
+        const newWs = new WebSocket(`${WS_URL}/ws/notes/`);
         ws.current = newWs;
       }, 3000);
     };
@@ -179,13 +183,13 @@ const Dashboard = () => {
     const noteData = { title, content, category };
     try {
       if (editingNote) {
-        const response = await axios.put(`http://localhost:8000/api/notes/${editingNote.id}/`, noteData, {
+        const response = await axios.put(`${API_URL}/api/notes/${editingNote.id}/`, noteData, {
           headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
         setNotes(notes.map((note) => (note.id === editingNote.id ? response.data : note)));
         toast.success('Note updated successfully');
       } else {
-        const response = await axios.post('http://localhost:8000/api/notes/', noteData, {
+        const response = await axios.post(`${API_URL}/api/notes/`, noteData, {
           headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
         setNotes([...notes, response.data]);
@@ -218,12 +222,12 @@ const Dashboard = () => {
     if (!noteToDelete) return;
     
     try {
-      await axios.delete(`http://localhost:8000/api/notes/${noteToDelete.id}/`, {
+      await axios.delete(`${API_URL}/api/notes/${noteToDelete.id}/`, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       
       // Send WebSocket message for deletion
-      const ws = new WebSocket('ws://localhost:8001/ws/notes/');
+      const ws = new WebSocket(`${WS_URL}/ws/notes/`);
       ws.onopen = () => {
         ws.send(JSON.stringify({
           id: noteToDelete.id,
@@ -250,8 +254,8 @@ const Dashboard = () => {
   const handleShare = async (noteId, data, type) => {
     try {
       const endpoint = type === "team"
-        ? `http://localhost:8000/api/notes/${noteId}/share_with_team/`
-        : `http://localhost:8000/api/notes/${noteId}/share_with_user/`;
+        ? `${API_URL}/api/notes/${noteId}/share_with_team/`
+        : `${API_URL}/api/notes/${noteId}/share_with_user/`;
       await axios.post(endpoint, data, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
@@ -270,7 +274,7 @@ const Dashboard = () => {
 
   const handleAcceptInvite = async (inviteId) => {
     try {
-      await axios.post(`http://localhost:8000/api/invitations/${inviteId}/accept/`, {}, {
+      await axios.post(`${API_URL}/api/invitations/${inviteId}/accept/`, {}, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       setInvitations(invitations.filter((invite) => invite.id !== inviteId));

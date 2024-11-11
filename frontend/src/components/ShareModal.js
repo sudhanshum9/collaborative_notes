@@ -8,16 +8,17 @@ const ShareModal = ({ note, onClose, onShare }) => {
   const [selectedTeam, setSelectedTeam] = useState('');
   const [selectedUser, setSelectedUser] = useState('');
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
   useEffect(() => {
     const fetchTeamsAndUsers = async () => {
       try {
-        const teamResponse = await axios.get('http://localhost:8000/api/teams/', {
+        const teamResponse = await axios.get(`${API_BASE_URL}/api/teams/`, {
           headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
-        const userResponse = await axios.get('http://localhost:8000/api/users/', {
+        const userResponse = await axios.get(`${API_BASE_URL}/api/users/`, {
           headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
-        console.log({teamResponse})
         setTeams(teamResponse.data);
         setUsers(userResponse.data);
       } catch (error) {

@@ -4,7 +4,6 @@ import Login from './components/Login';
 import Signup from './components/Register';
 import Dashboard from './pages/Dashboard'; // Assuming you have a Dashboard component for logged-in users
 import ProtectedRoute from './components/ProtectedRoute'; // For handling protected routes
-import NoteDetail from './components/NoteDetails';
 import Invitations from './components/Invitations';
 
 function App() {
@@ -24,11 +23,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/notes/:noteId" element={
-            <ProtectedRoute>
-              <NoteDetail />
-            </ProtectedRoute>
-          } />
           <Route path="/invitations" element={
             <ProtectedRoute>
               <Invitations />

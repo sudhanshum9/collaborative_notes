@@ -47,7 +47,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     
 class NoteViewSet(viewsets.ModelViewSet):
     queryset = Note.objects.all()
-    serializer_class = NoteSerializer
+    serializer_class = NoteSerializer 
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -94,15 +94,25 @@ class NoteViewSet(viewsets.ModelViewSet):
         return Response(updated_note, status=status.HTTP_200_OK)
     
     def perform_create(self, serializer):
-        # Handle category creation/assignment for new notes
-        category_name = self.request.data.get('category')
-        if category_name:
+        """
+        Creates a new note with the following flow:
+        1. Gets category name from request data if provided
+        2. If category exists, gets it from DB, otherwise creates new one
+        3. Saves note with the user and category (if provided)
+        """
+        # Get category name from request data
+        category_id = self.request.data.get('category')
+        
+        if category_id:
+            # Get or create category for the user
             category, created = Category.objects.get_or_create(
-                name=category_name,
+                id=category_id,
                 user=self.request.user
             )
+            # Save note with user and category
             serializer.save(user=self.request.user, category=category)
         else:
+            # Save note with just the user if no category provided
             serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'])

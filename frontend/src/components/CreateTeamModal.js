@@ -4,11 +4,13 @@ import axios from 'axios';
 
 const CreateTeamModal = ({ onClose, onTeamCreated }) => {
   const [teamName, setTeamName] = useState('');
+  
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   const handleCreateTeam = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:8000/api/teams/', { name: teamName }, {
+      const response = await axios.post(`${API_BASE_URL}/api/teams/`, { name: teamName }, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       alert(`Team "${response.data.name}" created successfully!`);

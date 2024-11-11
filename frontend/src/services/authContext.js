@@ -4,28 +4,38 @@ import axios from 'axios';
 
 const AuthContext = createContext();
 
+// Use environment variable for API URL with fallback
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token") || null);
+  const [token, setToken] = useState(
+    typeof window !== "undefined" ? localStorage.getItem("token") : null
+  );
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post('http://localhost:8000/auth/token/login/', {
+      const response = await axios.post(`${API_URL}/auth/token/login/`, {
         email,
         password
       });
       setToken(response.data.auth_token);
-      localStorage.setItem("token", response.data.auth_token);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("token", response.data.auth_token);
+      }
       // Fetch user data
       fetchUser();
     } catch (error) {
       console.error("Login failed", error);
+      throw error; // Propagate error to handle it in the UI
     }
   };
 
   const fetchUser = async () => {
+    if (!token) return;
+    
     try {
-      const response = await axios.get('http://localhost:8000/auth/users/me/', {
+      const response = await axios.get(`${API_URL}/auth/users/me/`, {
         headers: {
           Authorization: `Token ${token}`
         }
@@ -33,13 +43,19 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data);
     } catch (error) {
       console.error("Fetching user failed", error);
+      // If unauthorized, clear the invalid token
+      if (error.response?.status === 401) {
+        logout();
+      }
     }
   };
 
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem("token");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+    }
   };
 
   return (
