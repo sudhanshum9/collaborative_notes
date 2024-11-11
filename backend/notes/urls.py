@@ -1,7 +1,7 @@
 # notes/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import NoteViewSet, TeamViewSet, InvitationViewSet, UserProfileView
+from .views import NoteViewSet, TeamViewSet, InvitationViewSet, UserProfileView, UserListView
 
 router = DefaultRouter()
 
@@ -11,5 +11,6 @@ router.register(r'invitations', InvitationViewSet)
 
 urlpatterns = [
     path('profile/', UserProfileView.as_view(), name='user-profile'),
+    path('users/', UserListView.as_view(), name='user-list'),
     path('', include(router.urls)),
 ]

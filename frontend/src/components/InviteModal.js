@@ -1,8 +1,9 @@
 // src/components/InviteModal.js
+
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const InviteModal = ({ teamId, onClose }) => {
+const InviteModal = ({ onClose, teamId }) => {
   const [email, setEmail] = useState('');
 
   const handleInvite = async () => {
@@ -15,22 +16,30 @@ const InviteModal = ({ teamId, onClose }) => {
       onClose();
     } catch (error) {
       console.error("Error sending invite", error);
-      alert("Failed to send invitation.");
+      alert("Failed to send invitation");
     }
   };
 
   return (
-    <div className="modal bg-white p-6 rounded shadow-lg">
-      <h3 className="text-lg font-semibold mb-4">Invite a Team Member</h3>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Enter email to invite"
-        className="w-full px-4 py-2 mb-4 border rounded-lg"
-      />
-      <button onClick={handleInvite} className="w-full bg-green-500 text-white py-2 rounded mb-2">Send Invite</button>
-      <button onClick={onClose} className="w-full bg-gray-300 py-2 rounded">Close</button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-2xl font-semibold mb-4">Invite to Team</h2>
+        <input
+          type="email"
+          placeholder="Enter email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg"
+        />
+        <div className="flex justify-end space-x-4">
+          <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+            Cancel
+          </button>
+          <button onClick={handleInvite} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Send Invite
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

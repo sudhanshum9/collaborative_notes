@@ -1,219 +1,420 @@
 // src/components/Dashboard.js
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import ShareModal from '../components/ShareModal';
 import InviteModal from '../components/InviteModal';
-import { Link } from 'react-router-dom';
+import CreateTeamModal from '../components/CreateTeamModal';
+import { FiPlus, FiEdit2, FiShare2, FiTrash2, FiLogOut, FiMenu } from 'react-icons/fi';
+import { toast } from 'react-toastify';
 
 const Dashboard = () => {
-    const [user, setUser] = useState(null);  // User profile data
-    const [notes, setNotes] = useState([]);
-    const [title, setTitle] = useState('');
-    const [content, setContent] = useState('');
-    const [editingNote, setEditingNote] = useState(null);
-    const [inviteModalOpen, setInviteModalOpen] = useState(false);
-    const [teamModalOpen, setTeamModalOpen] = useState(false);
-    const [teamName, setTeamName] = useState('');
-    const [teams, setTeams] = useState([]);
-    const [socket, setSocket] = useState(null);
+  const [user, setUser] = useState(null);
+  const [notes, setNotes] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [invitations, setInvitations] = useState([]);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [editingNote, setEditingNote] = useState(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    const fetchUserProfile = async () => {
-        try {
-            const response = await axios.get('http://localhost:8000/api/profile/', {
-                headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
-            });
-            setUser(response.data);
-        } catch (error) {
-            console.error("Error fetching user profile", error);
-        }
+  // Memoized fetch functions
+  const fetchUserProfile = useCallback(async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/profile/', {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      setUser(response.data);
+    } catch (error) {
+      toast.error("Error fetching user profile");
+    }
+  }, []);
+
+  const fetchNotes = useCallback(async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/notes/', {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      setNotes(response.data);
+    } catch (error) {
+      toast.error("Error fetching notes");
+    }
+  }, []);
+
+  const fetchTeams = useCallback(async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/teams/', {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      setTeams(response.data);
+    } catch (error) {
+      toast.error("Error fetching teams");
+    }
+  }, []);
+
+  const fetchInvitations = useCallback(async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/invitations/', {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      setInvitations(response.data);
+    } catch (error) {
+      toast.error("Error fetching invitations");
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      await Promise.all([
+        fetchUserProfile(),
+        fetchNotes(),
+        fetchTeams(),
+        fetchInvitations()
+      ]);
+      setIsLoading(false);
+    };
+    fetchData();
+
+    const ws = new WebSocket('ws://localhost:8001/ws/notes/');
+    
+    ws.onopen = () => {
+      setWsConnected(true);
+      toast.success('Real-time updates connected');
     };
 
-    const fetchNotes = async () => {
-        const response = await axios.get('http://localhost:8000/api/notes/', {
-            headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+    ws.onclose = () => {
+      setWsConnected(false);
+      toast.warning('Real-time updates disconnected. Reconnecting...');
+      setTimeout(() => {
+        const newWs = new WebSocket('ws://localhost:8001/ws/notes/');
+        ws.current = newWs;
+      }, 3000);
+    };
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const { id, title, content } = data;
+
+      setNotes((prevNotes) => 
+        prevNotes.map((note) =>
+          note.id === id ? { ...note, title, content } : note
+        )
+      );
+      toast.info('Note updated in real-time');
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [fetchUserProfile, fetchNotes, fetchTeams, fetchInvitations]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    window.location.href = '/login';
+  };
+
+  const handleAddOrUpdateNote = async (e) => {
+    e.preventDefault();
+    const noteData = { title, content };
+    try {
+      if (editingNote) {
+        const response = await axios.put(`http://localhost:8000/api/notes/${editingNote.id}/`, noteData, {
+          headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
-        setNotes(response.data);
-    };
-
-    const fetchTeams = async () => {
-        const response = await axios.get('http://localhost:8000/api/teams/', {
-            headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+        setNotes(notes.map((note) => (note.id === editingNote.id ? response.data : note)));
+        toast.success('Note updated successfully');
+      } else {
+        const response = await axios.post('http://localhost:8000/api/notes/', noteData, {
+          headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
-        setTeams(response.data);
-    };
+        setNotes([...notes, response.data]);
+        toast.success('Note created successfully');
+      }
+      setTitle('');
+      setContent('');
+      setNoteModalOpen(false);
+      setEditingNote(null);
+    } catch (error) {
+      toast.error('Error saving note');
+    }
+  };
 
-    useEffect(() => {
-        fetchUserProfile();
-        fetchNotes();
-        fetchTeams();
+  const handleEditNote = (note) => {
+    setEditingNote(note);
+    setTitle(note.title);
+    setContent(note.content);
+    setNoteModalOpen(true);
+  };
 
-        // Set up WebSocket for real-time note updates
-        const ws = new WebSocket('ws://localhost:8000/ws/notes/');
-        setSocket(ws);
+  const handleDeleteNote = async (id) => {
+    try {
+      await axios.delete(`http://localhost:8000/api/notes/${id}/`, {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      setNotes(notes.filter((note) => note.id !== id));
+      toast.success('Note deleted successfully');
+    } catch (error) {
+      toast.error('Error deleting note');
+    }
+  };
 
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            setNotes((prevNotes) => prevNotes.map(note => note.id === data.id ? data : note));
-        };
+  const handleShareClick = (note) => {
+    setSelectedNote(note);
+    setShareModalOpen(true);
+  };
 
-        return () => ws.close();
-    }, []);
+  const handleShare = async (noteId, data, type) => {
+    try {
+      const endpoint = type === "team"
+        ? `http://localhost:8000/api/notes/${noteId}/share_with_team/`
+        : `http://localhost:8000/api/notes/${noteId}/share_with_user/`;
+      await axios.post(endpoint, data, {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      await fetchNotes();
+      setShareModalOpen(false);
+      toast.success(`Note shared with ${type} successfully`);
+    } catch (error) {
+      toast.error(`Failed to share with ${type}`);
+    }
+  };
 
-    const handleAddOrUpdateNote = async (e) => {
-        e.preventDefault();
-        const noteData = { title, content };
-        try {
-            if (editingNote) {
-                const response = await axios.put(`http://localhost:8000/api/notes/${editingNote.id}/`, noteData, {
-                    headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
-                });
-                setNotes(notes.map((note) => (note.id === editingNote.id ? response.data : note)));
-                if (socket && socket.readyState === WebSocket.OPEN) {
-                    socket.send(JSON.stringify(response.data)); // Send updated note to WebSocket
-                }
-                setEditingNote(null);
-            } else {
-                const response = await axios.post('http://localhost:8000/api/notes/', noteData, {
-                    headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
-                });
-                setNotes([...notes, response.data]);
-                if (socket && socket.readyState === WebSocket.OPEN) {
-                    socket.send(JSON.stringify(response.data)); // Send new note to WebSocket
-                }
-            }
+  const handleInviteMember = (teamId) => {
+    setSelectedTeamId(teamId);
+    setInviteModalOpen(true);
+  };
+
+  const handleAcceptInvite = async (inviteId) => {
+    try {
+      await axios.post(`http://localhost:8000/api/invitations/${inviteId}/accept/`, {}, {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      setInvitations(invitations.filter((invite) => invite.id !== inviteId));
+      await fetchTeams();
+      toast.success('Invitation accepted successfully');
+    } catch (error) {
+      toast.error('Failed to accept invitation');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
+      {/* Mobile Menu Button */}
+      <button 
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-blue-600 text-white rounded-lg"
+      >
+        <FiMenu size={24} />
+      </button>
+
+      {/* Sidebar */}
+      <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transform transition-transform duration-200 ease-in-out fixed md:static w-64 bg-blue-600 text-white min-h-screen p-4 shadow-lg z-40`}>
+        {/* User Profile Section */}
+        {user && (
+          <div className="mb-8 p-4 bg-blue-700 rounded-lg shadow-inner">
+            <div className="w-20 h-20 mx-auto mb-4 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
+              <span className="text-3xl font-bold">{user.username[0].toUpperCase()}</span>
+            </div>
+            <h2 className="text-xl font-bold text-center">{user.username}</h2>
+            <p className="text-blue-200 text-sm text-center">{user.email}</p>
+          </div>
+        )}
+        
+        {/* Teams Section */}
+        <div className="flex-grow">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <span>Teams</span>
+            <button 
+              onClick={() => setTeamModalOpen(true)}
+              className="ml-auto p-1 hover:bg-blue-500 rounded-full transition-colors"
+              title="Create Team"
+            >
+              <FiPlus />
+            </button>
+          </h3>
+          <div className="space-y-2">
+            {teams.map(team => (
+              <div key={team.id} className="p-3 bg-blue-500 rounded-lg hover:bg-blue-400 cursor-pointer transition-colors shadow-sm">
+                <div className="flex justify-between items-center">
+                  <span>{team.name}</span>
+                  <button 
+                    onClick={() => handleInviteMember(team.id)}
+                    className="bg-blue-700 hover:bg-blue-600 text-white text-sm py-1 px-2 rounded transition-colors"
+                  >
+                    Invite
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Invitations Section */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold mb-4">Invitations</h3>
+          <div className="space-y-2">
+            {invitations.map((invite) => (
+              <div key={invite.id} className="p-3 bg-blue-500 rounded-lg shadow-sm">
+                <span>{invite.team}</span>
+                <button 
+                  onClick={() => handleAcceptInvite(invite.id)}
+                  className="ml-2 bg-green-500 hover:bg-green-600 text-white text-sm py-1 px-2 rounded transition-colors"
+                >
+                  Accept
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Logout Button */}
+        <button 
+          onClick={handleLogout}
+          className="mt-8 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+        >
+          <FiLogOut />
+          <span>Logout</span>
+        </button>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-4 md:p-8 mt-16 md:mt-0">
+        {/* WebSocket Status */}
+        <div className={`fixed top-4 right-4 p-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'} text-white text-sm flex items-center gap-2 transition-colors`}>
+          <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-200' : 'bg-red-200'} animate-pulse`}></span>
+          {wsConnected ? 'Connected' : 'Disconnected'}
+        </div>
+
+        {/* Add Note Button */}
+        <button
+          onClick={() => {
+            setEditingNote(null);
             setTitle('');
             setContent('');
-        } catch (error) {
-            console.error('Error saving note', error);
-        }
-    };
+            setNoteModalOpen(true);
+          }}
+          className="mb-6 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center gap-2 shadow-md w-full md:w-auto justify-center md:justify-start"
+        >
+          <FiPlus />
+          <span>Add New Note</span>
+        </button>
 
-    const handleEditNote = (note) => {
-        setEditingNote(note);
-        setTitle(note.title);
-        setContent(note.content);
-    };
-
-    const handleDeleteNote = async (id) => {
-        await axios.delete(`http://localhost:8000/api/notes/${id}/`, {
-            headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
-        });
-        setNotes(notes.filter((note) => note.id !== id));
-    };
-
-    const handleCreateTeam = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await axios.post('http://localhost:8000/api/teams/', { name: teamName }, {
-                headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
-            });
-            alert(`Team ${response.data.name} created successfully!`);
-            setTeamName('');
-            setTeamModalOpen(false);
-            fetchTeams();
-        } catch (error) {
-            console.error('Error creating team', error);
-            alert('Failed to create team.');
-        }
-    };
-
-    return (
-        <div className="min-h-screen p-4 bg-gray-100">
-            {/* Display User Information */}
-            {user && (
-                <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold">Welcome, {user.username}!</h2>
-                    <p className="text-gray-600">{user.email}</p>
-                </div>
-            )}
-            <div className="text-center mb-4">
-                <Link to="/invitations" className="text-blue-500 hover:underline">
-                    View Pending Invitations
-                </Link>
-            </div>
-            <h2 className="text-3xl font-bold text-center mb-4">Dashboard</h2>
-
-            {/* Team Management Buttons */}
-            <div className="flex flex-wrap justify-center mb-6 space-x-4">
-                <button onClick={() => setInviteModalOpen(true)} className="py-2 px-4 bg-green-500 text-white rounded hover:bg-green-600 transition">
-                    Invite Team Member
+        {/* Notes Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          {notes.map((note) => (
+            <div key={note.id} className="bg-white p-4 md:p-6 rounded-xl shadow-md hover:shadow-xl transition-shadow">
+              <div className="mb-4 md:mb-6">
+                <h4 className="text-xl md:text-2xl font-bold mb-2 md:mb-3">{note.title}</h4>
+                <p className="text-gray-700 text-sm md:text-base">{note.content}</p>
+              </div>
+              <div className="flex justify-end space-x-3 md:space-x-4">
+                <button 
+                  onClick={() => handleEditNote(note)} 
+                  className="text-blue-500 hover:text-blue-600 transition-colors"
+                  title="Edit"
+                >
+                  <FiEdit2 />
                 </button>
-                <button onClick={() => setTeamModalOpen(true)} className="py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
-                    Create New Team
+                <button 
+                  onClick={() => handleShareClick(note)} 
+                  className="text-green-500 hover:text-green-600 transition-colors"
+                  title="Share"
+                >
+                  <FiShare2 />
                 </button>
-            </div>
-
-            {/* Invite Modal */}
-            {inviteModalOpen && <InviteModal teamId={1} onClose={() => setInviteModalOpen(false)} />}
-
-            {/* Create Team Modal */}
-            {teamModalOpen && (
-                <div className="modal fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                    <div className="bg-white p-6 rounded shadow-lg max-w-md w-full">
-                        <h3 className="text-lg font-semibold mb-4">Create a New Team</h3>
-                        <form onSubmit={handleCreateTeam}>
-                            <input
-                                type="text"
-                                value={teamName}
-                                onChange={(e) => setTeamName(e.target.value)}
-                                placeholder="Enter team name"
-                                className="w-full px-4 py-2 mb-4 border rounded-lg"
-                            />
-                            <button type="submit" className="w-full bg-blue-500 text-white py-2 rounded mb-2">Create Team</button>
-                            <button onClick={() => setTeamModalOpen(false)} className="w-full bg-gray-300 py-2 rounded">Close</button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Notes Form */}
-            <form onSubmit={handleAddOrUpdateNote} className="bg-white p-4 rounded-lg shadow-md mb-6 max-w-lg mx-auto">
-                <h3 className="text-xl font-semibold mb-2">{editingNote ? 'Edit Note' : 'Add New Note'}</h3>
-                <input
-                    type="text"
-                    placeholder="Title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-4 py-2 mb-2 border rounded-lg"
-                />
-                <textarea
-                    placeholder="Content"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="w-full px-4 py-2 mb-2 border rounded-lg"
-                    rows="3"
-                ></textarea>
-                <button type="submit" className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition">
-                    {editingNote ? 'Update Note' : 'Add Note'}
+                <button 
+                  onClick={() => handleDeleteNote(note.id)} 
+                  className="text-red-500 hover:text-red-600 transition-colors"
+                  title="Delete"
+                >
+                  <FiTrash2 />
                 </button>
-            </form>
-
-            {/* Notes Display */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
-                {notes.map((note) => (
-                    <div key={note.id} className="bg-white p-4 rounded-lg shadow-md flex flex-col justify-between">
-                        <div>
-                            <h4 className="text-lg font-semibold mb-2">{note.title}</h4>
-                            <p className="text-gray-700">{note.content}</p>
-                        </div>
-                        <div className="flex justify-end space-x-2 mt-4">
-                            <button onClick={() => handleEditNote(note)} className="text-blue-500 hover:underline">Edit</button>
-                            <button onClick={() => handleDeleteNote(note.id)} className="text-red-500 hover:underline">Delete</button>
-                        </div>
-                    </div>
-                ))}
+              </div>
             </div>
-
-            {/* Teams Display */}
-            <h3 className="text-xl font-bold mt-8 mb-4 text-center">Your Teams</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
-                {teams.map((team) => (
-                    <div key={team.id} className="bg-white p-4 rounded-lg shadow-md">
-                        <h4 className="text-lg font-semibold">{team.name}</h4>
-                    </div>
-                ))}
-            </div>
+          ))}
         </div>
-    );
+      </div>
+
+      {/* Modals */}
+      {noteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-4 md:p-8 rounded-lg shadow-lg w-full max-w-2xl mx-4">
+            <h3 className="text-xl md:text-2xl font-semibold mb-4">{editingNote ? 'Edit Note' : 'Add Note'}</h3>
+            <form onSubmit={handleAddOrUpdateNote}>
+              <input
+                type="text"
+                placeholder="Title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <textarea
+                placeholder="Content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows="4"
+              />
+              <div className="flex justify-end space-x-4">
+                <button 
+                  type="button" 
+                  onClick={() => setNoteModalOpen(false)} 
+                  className="text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {teamModalOpen && (
+        <CreateTeamModal onClose={() => setTeamModalOpen(false)} onTeamCreated={fetchTeams} />
+      )}
+
+      {inviteModalOpen && (
+        <InviteModal onClose={() => setInviteModalOpen(false)} teamId={selectedTeamId} />
+      )}
+
+      {shareModalOpen && selectedNote && (
+        <ShareModal note={selectedNote} onClose={() => setShareModalOpen(false)} onShare={handleShare} />
+      )}
+
+      {/* Overlay for mobile sidebar */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+    </div>
+  );
 };
 
-export default Dashboard
+export default Dashboard;

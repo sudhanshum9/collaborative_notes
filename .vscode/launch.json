@@ -1,0 +1,75 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Django",
+            "type": "python",
+            "request": "launch",
+            "program": "/Users/sudhanshu/personal-repos/collaborative_notes/backend/manage.py",
+            "args": [
+                "runserver",
+                "8000"
+            ],
+            "django": true,
+            "justMyCode": true,
+            "python": "/Users/sudhanshu/miniconda3/envs/notes/bin/python",
+
+        },
+        {
+            "name": "Python: shell",
+            "type": "python",
+            "request": "launch",
+            "program": "/Users/sudhanshu/personal-repos/collaborative_notes/backend/manage.py",
+            "args": [
+                "shell",
+            ],
+            "django": true,
+            "justMyCode": true,
+            "python": "/Users/sudhanshu/miniconda3/envs/notes/bin/python",
+
+        },
+        {
+            "name": "Python: makemigrations",
+            "type": "python",
+            "request": "launch",
+            "program": "/Users/sudhanshu/personal-repos/collaborative_notes/backend/manage.py",
+            "args": [
+                "makemigrations",
+            ],
+            "django": true,
+            "justMyCode": true,
+            "python": "/Users/sudhanshu/miniconda3/envs/notes/bin/python",
+
+        },
+        {
+            "name": "Python: Migrate",
+            "type": "python",
+            "request": "launch",
+            "program": "/Users/sudhanshu/personal-repos/collaborative_notes/backend/manage.py",
+            "args": [
+                "migrate",
+            ],
+            "django": true,
+            "justMyCode": true,
+            "python": "/Users/sudhanshu/miniconda3/envs/notes/bin/python",
+
+        },
+        {
+            "name": "Run Daphne Server",
+            "type": "python",
+            "request": "launch",
+            "program": "/Users/sudhanshu/miniconda3/envs/notes/bin/daphne",
+            "console": "integratedTerminal",
+            "args": [
+                "-p", "8001",
+                "collaborative_notes.asgi:application"
+            ],
+            "env": {
+                "DJANGO_SETTINGS_MODULE": "collaborative_notes.settings",
+                "PYTHONPATH": "/Users/sudhanshu/personal-repos/collaborative_notes/backend"
+            },
+            "python": "/Users/sudhanshu/miniconda3/envs/notes/bin/python"
+        }
+
+    ]
+}

@@ -1,64 +1,59 @@
-// src/components/NoteDetail.js
+// src/components/NoteDisplay.js
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import ShareModal from './ShareModal';
 
-const NoteDetail = () => {
-  const { noteId } = useParams();
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [socket, setSocket] = useState(null);
-
+const NoteDisplay = ({ notes, onEdit, onDelete, onShare }) => {
+  const [noteContents, setNoteContents] = useState(notes); // Store the initial notes
+  const [selectedNote, setSelectedNote] = useState(null); // Track the note selected for sharing
+  console.log('testing')
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/notes/${noteId}/`);
-    setSocket(ws);
-
-    // Handle incoming messages
+    // Open a single WebSocket connection
+    const ws = new WebSocket('ws://localhost:8001/ws/notes/');
+    console.log({ws})
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      setTitle(data.title);
-      setContent(data.content);
+      const { id, title, content } = data;
+
+      // Update the specific note's content based on the received ID
+      setNoteContents((prevNotes) =>
+        prevNotes.map((note) =>
+          note.id === id ? { ...note, title, content } : note
+        )
+      );
     };
 
-    // Clean up on component unmount
+    // Clean up WebSocket connection when component unmounts
     return () => ws.close();
-  }, [noteId]);
+  }, []);
 
-  // Send updated content when typing
-  const handleContentChange = (e) => {
-    const newContent = e.target.value;
-    setContent(newContent);
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ title, content: newContent }));
-    }
-  };
-
-  const handleTitleChange = (e) => {
-    const newTitle = e.target.value;
-    setTitle(newTitle);
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ title: newTitle, content }));
-    }
+  const handleShareClick = (note) => {
+    setSelectedNote(note);
   };
 
   return (
-    <div className="p-6 bg-gray-100">
-      <h2 className="text-2xl font-bold mb-4">Edit Note</h2>
-      <input
-        type="text"
-        value={title}
-        onChange={handleTitleChange}
-        className="w-full px-4 py-2 mb-4 border rounded-lg"
-        placeholder="Note Title"
-      />
-      <textarea
-        value={content}
-        onChange={handleContentChange}
-        className="w-full px-4 py-2 mb-4 border rounded-lg"
-        rows="10"
-        placeholder="Note Content"
-      ></textarea>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+      {noteContents.map((note) => (
+        <div key={note.id} className="bg-white p-4 rounded-lg shadow-md flex flex-col justify-between">
+          <div>
+            <h4 className="text-lg font-semibold mb-2">{note.title}</h4>
+            <p className="text-gray-700">{note.content}</p>
+          </div>
+          <div className="flex justify-between space-x-2 mt-4">
+            <button onClick={() => onEdit(note)} className="text-blue-500 hover:underline">Edit</button>
+            <button onClick={() => onDelete(note.id)} className="text-red-500 hover:underline">Delete</button>
+            <button onClick={() => handleShareClick(note)} className="text-green-500 hover:underline">Share</button>
+          </div>
+        </div>
+      ))}
+      {selectedNote && (
+        <ShareModal
+          note={selectedNote}
+          onClose={() => setSelectedNote(null)}
+          onShare={onShare}
+        />
+      )}
     </div>
   );
 };
 
-export default NoteDetail;
+export default NoteDisplay;

@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'notes',
     'accounts',
     'channels',
+    'channels_postgres',
 ]
 
 MIDDLEWARE = [
@@ -189,9 +190,24 @@ CORS_ALLOW_METHODS = [
 AUTH_USER_MODEL = 'accounts.CustomUser'
 ASGI_APPLICATION = 'collaborative_notes.asgi.application'
 
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels.layers.InMemoryChannelLayer",
+#     },
+# }
+
 
 CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    'default': {
+        'BACKEND': 'channels_postgres.core.PostgresChannelLayer',
+        'CONFIG': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': 'notes2',
+            'USER': 'postgres',
+            'PASSWORD':  'postgres',
+            'HOST': '127.0.0.1',
+            'PORT': '5432',
+            'config': {}
+        },
     },
 }
