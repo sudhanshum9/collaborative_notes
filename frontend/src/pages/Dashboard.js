@@ -56,7 +56,7 @@ const Dashboard = () => {
     }
   };
 
-  const filteredNotes = notes.filter(note => {
+  const filteredNotes = notes?.filter(note => {
     if (selectedCategoryFilter === 'all') return true;
     return note.category == selectedCategoryFilter;
   });
