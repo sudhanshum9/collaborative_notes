@@ -6,14 +6,13 @@ User = get_user_model()
 
 class Category(models.Model):
     name = models.CharField(max_length=50)
-    user = models.ForeignKey(User, related_name="categories", on_delete=models.CASCADE)
-
+    users = models.ManyToManyField(User, related_name="categories")
+    
     def __str__(self):
         return self.name
-
     class Meta:
         verbose_name_plural = "Categories"
-        unique_together = ['name', 'user']  # Make name unique per user instead of globally unique
+        unique_together = ['name']  # Make name unique per user instead of globally unique
 
 class Note(models.Model):
     user = models.ForeignKey(User, related_name="notes", on_delete=models.CASCADE)

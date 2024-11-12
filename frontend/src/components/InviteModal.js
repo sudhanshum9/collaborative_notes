@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const InviteModal = ({ onClose, teamId }) => {
   const [email, setEmail] = useState('');

@@ -8,7 +8,7 @@
             "program": "/Users/sudhanshu/personal-repos/collaborative_notes/backend/manage.py",
             "args": [
                 "runserver",
-                "8000"
+                "8002"
             ],
             "django": true,
             "justMyCode": true,

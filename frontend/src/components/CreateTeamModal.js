@@ -5,7 +5,7 @@ import axios from 'axios';
 const CreateTeamModal = ({ onClose, onTeamCreated }) => {
   const [teamName, setTeamName] = useState('');
   
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
   const handleCreateTeam = async (e) => {
     e.preventDefault();

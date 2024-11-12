@@ -9,8 +9,7 @@ User = get_user_model()
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'user']
-        read_only_fields = ['user']
+        fields = ['id', 'name']
 
 class NoteSerializer(serializers.ModelSerializer):
     class Meta:

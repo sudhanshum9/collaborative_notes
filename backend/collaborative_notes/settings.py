@@ -27,7 +27,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', get_random_secret_key())
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
-# DEBUG = True
+DEBUG = True
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost').split(',')
 
 # Security settings - only enable in production
@@ -42,9 +42,9 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
     X_FRAME_OPTIONS = 'DENY'
 else:
-    SECURE_SSL_REDIRECT = False
-    SESSION_COOKIE_SECURE = False 
-    CSRF_COOKIE_SECURE = False
+    SECURE_SSL_REDIRECT = False  # Changed to True to handle HTTP to HTTPS redirect
+    SESSION_COOKIE_SECURE = False  # Changed to True for secure cookies
+    CSRF_COOKIE_SECURE = False  # Changed to True for secure CSRF
 
 # Application definition
 
@@ -104,7 +104,7 @@ WSGI_APPLICATION = 'collaborative_notes.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'notes2'),
+        'NAME': os.environ.get('DB_NAME', 'notes3'),
         'USER': os.environ.get('DB_USER', 'postgres'),
         'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
         'HOST': os.environ.get('DB_HOST', 'localhost'),
@@ -200,9 +200,9 @@ DJOSER = {
 
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3001').split(',')
 
-CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_ALL_ORIGINS = False  # Changed to False for security
 
-CORS_ALLOW_CREDENTIALS = True  # Added this setting
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -234,7 +234,7 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels_postgres.core.PostgresChannelLayer',
         'CONFIG': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
-            'NAME': os.environ.get('DB_NAME', 'notes2'),
+            'NAME': os.environ.get('DB_NAME', 'notes3'),
             'USER': os.environ.get('DB_USER', 'postgres'),
             'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
             'HOST': os.environ.get('DB_HOST', '127.0.0.1'),

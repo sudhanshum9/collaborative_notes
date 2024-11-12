@@ -9,8 +9,8 @@ import { FiPlus, FiEdit2, FiShare2, FiTrash2, FiLogOut, FiMenu } from 'react-ico
 import { toast } from 'react-toastify';
 
 // Get API URL from environment variable
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const WS_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:8001';
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
@@ -36,6 +36,7 @@ const Dashboard = () => {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState(null);
+  const [ws, setWs] = useState(null);
 
   // Add new category
   const handleAddCategory = async () => {
@@ -55,10 +56,9 @@ const Dashboard = () => {
     }
   };
 
-  // Filter notes by category
   const filteredNotes = notes.filter(note => {
     if (selectedCategoryFilter === 'all') return true;
-    return note.category === selectedCategoryFilter;
+    return note.category == selectedCategoryFilter;
   });
 
   // Memoized fetch functions
@@ -102,7 +102,11 @@ const Dashboard = () => {
       });
       setTeams(response.data);
     } catch (error) {
-      toast.error("Error fetching teams");
+      if (error.code === 'ERR_CONNECTION_REFUSED') {
+        toast.error("Unable to connect to server. Please check if the server is running.");
+      } else {
+        toast.error("Error fetching teams");
+      }
     }
   }, []);
 
@@ -131,47 +135,68 @@ const Dashboard = () => {
     };
     fetchData();
 
-    const ws = new WebSocket(`${WS_URL}/ws/notes/`);
+    const websocket = new WebSocket(`${WS_URL}/ws/notes/`);
+    setWs(websocket);
     
-    ws.onopen = () => {
+    websocket.onopen = () => {
       setWsConnected(true);
       toast.success('Real-time updates connected');
     };
 
-    ws.onclose = () => {
+    websocket.onclose = () => {
       setWsConnected(false);
       toast.warning('Real-time updates disconnected. Reconnecting...');
       setTimeout(() => {
         const newWs = new WebSocket(`${WS_URL}/ws/notes/`);
-        ws.current = newWs;
+        setWs(newWs);
       }, 3000);
     };
     
-    ws.onmessage = (event) => {
+    websocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      const { id, title, content } = data;
-
-      if (title === null && content === null) {
-        // Note was deleted
-        setNotes(prevNotes => prevNotes.filter(note => note.id !== id));
-        toast.info('Note deleted in real-time');
-      } else {
-        // Note was updated
-        setNotes((prevNotes) => 
-          prevNotes.map((note) =>
-            note.id === id ? { ...note, title, content } : note
-          )
-        );
-        toast.info('Note updated in real-time');
+      console.log({data})
+      const { type, id, title, content } = data;
+      console.log({type,id,title,content})  
+      switch(type) {
+        case 'note_deleted':
+          setNotes(prevNotes => prevNotes.filter(note => note.id !== id));
+          toast.info('Note deleted in real-time');
+          break;
+        case 'note_update':
+          setNotes(prevNotes => 
+            prevNotes.map(note => 
+              note.id === id 
+                ? { ...note, title, content }
+                : note
+            )
+          );
+          toast.info('Note updated in real-time');
+          break;
+        case 'note_share':
+          fetchNotes();
+          toast.info('Note shared in real-time');
+          break;
+        case 'team_invite':
+          fetchInvitations();
+          toast.info('New team invitation received');
+          break;
+        default:
+          break;
       }
     };
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
+      if (websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
       }
     };
   }, [fetchUserProfile, fetchNotes, fetchTeams, fetchInvitations, fetchCategories]);
+
+  const sendWebSocketMessage = (type, payload) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type, payload }));
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
@@ -187,12 +212,14 @@ const Dashboard = () => {
           headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
         setNotes(notes.map((note) => (note.id === editingNote.id ? response.data : note)));
+        sendWebSocketMessage('NOTE_UPDATED', response.data);
         toast.success('Note updated successfully');
       } else {
         const response = await axios.post(`${API_URL}/api/notes/`, noteData, {
           headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         });
         setNotes([...notes, response.data]);
+        sendWebSocketMessage('NOTE_UPDATED', response.data);
         toast.success('Note created successfully');
       }
       setTitle('');
@@ -226,17 +253,8 @@ const Dashboard = () => {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
       
-      // Send WebSocket message for deletion
-      const ws = new WebSocket(`${WS_URL}/ws/notes/`);
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          id: noteToDelete.id,
-          title: null,
-          content: null
-        }));
-        ws.close();
-      };
-
+      sendWebSocketMessage('NOTE_DELETED', { id: noteToDelete.id });
+      
       setNotes(notes.filter((note) => note.id !== noteToDelete.id));
       setDeleteModalOpen(false);
       setNoteToDelete(null);
@@ -256,9 +274,12 @@ const Dashboard = () => {
       const endpoint = type === "team"
         ? `${API_URL}/api/notes/${noteId}/share_with_team/`
         : `${API_URL}/api/notes/${noteId}/share_with_user/`;
-      await axios.post(endpoint, data, {
+      const response = await axios.post(endpoint, data, {
         headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
       });
+      
+      sendWebSocketMessage('NOTE_SHARED', response.data);
+      
       await fetchNotes();
       setShareModalOpen(false);
       toast.success(`Note shared with ${type} successfully`);
@@ -279,6 +300,7 @@ const Dashboard = () => {
       });
       setInvitations(invitations.filter((invite) => invite.id !== inviteId));
       await fetchTeams();
+      sendWebSocketMessage('TEAM_INVITE_ACCEPTED', { inviteId });
       toast.success('Invitation accepted successfully');
     } catch (error) {
       toast.error('Failed to accept invitation');
@@ -475,6 +497,7 @@ const Dashboard = () => {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
               />
               <textarea
                 placeholder="Content"
@@ -487,6 +510,7 @@ const Dashboard = () => {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
               >
                 <option value="">Select Category</option>
                 {categories.map((cat) => (

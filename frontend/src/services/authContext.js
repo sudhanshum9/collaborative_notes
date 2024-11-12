@@ -5,7 +5,7 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 // Use environment variable for API URL with fallback
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);

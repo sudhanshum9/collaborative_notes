@@ -30,29 +30,63 @@ class NoteConsumer(AsyncJsonWebsocketConsumer):
     #         await asyncio.sleep(30)  # Ping every 30 seconds
     #         await self.send(text_data="ping")  # Send a ping message
     
-    
     async def receive(self, text_data):
         data = json.loads(text_data)
-        note_id = data['id']
-        title = data['title']
-        content = data['content']
-
-        # Broadcast the update to the shared room, including the note ID
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'update',  # Changed to just 'update' to match method name
-                'id': note_id,
-                'title': title,
-                'content': content,
-            }
-        )            
+        message_type = data.get('type', 'note_update')
+        
+        if message_type == 'note_update':
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'update',
+                    'id': data['id'],
+                    'title': data['title'],
+                    'content': data['content'],
+                }
+            )
+        elif message_type == 'note_share':
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'share_update',
+                    'note_id': data['note_id'],
+                    'share_type': data['share_type']  # 'team' or 'user'
+                }
+            )
 
     async def update(self, event):
         # Send updated note data to WebSocket clients
-        logger.info("Received update event in WebSocket consumer") 
+        logger.info("Received note update event in WebSocket consumer")
         await self.send(text_data=json.dumps({
+            "type": "note_update",
             "id": event["id"],
             "title": event["title"],
             "content": event["content"],
+        }))
+
+    async def share_update(self, event):
+        logger.info("Received note share update event")
+        await self.send(text_data=json.dumps({
+            "type": "note_share",
+            "note_id": event["note_id"],
+            # "share_type": event["share_type"]
+        }))
+
+    async def invitation_update(self, event):
+        logger.info("Received team invitation update event")
+        await self.send(text_data=json.dumps({
+            "type": "team_invite",
+            "invitation_id": event["invitation_id"],
+            "team_id": event["team_id"],
+            "email": event["email"],
+            "action": event["action"]
+        }))
+
+    async def note_deleted(self, event):
+        logger.info("Received note deletion event")
+        await self.send(text_data=json.dumps({
+            "type": "note_deleted",
+            "id": event["id"],
+            "title": event["title"],
+            "content": event["content"]
         }))

@@ -1,14 +1,24 @@
 // src/components/Login.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Link, useNavigate } from 'react-router-dom';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      navigate('/dashboard'); // Redirect to dashboard if already logged in
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +33,7 @@ const Login = () => {
 
       if (response.data.auth_token) {
         localStorage.setItem('auth_token', response.data.auth_token);
-        window.location.href = "/dashboard";
+        navigate('/dashboard');
       }
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please check your credentials and try again.");
@@ -80,6 +90,15 @@ const Login = () => {
           >
             {isLoading ? 'Logging in...' : 'Sign In'}
           </button>
+
+          <div className="text-center mt-4">
+            <p className="text-gray-600">
+              Don't have an account?{' '}
+              <Link to="/signup" className="text-blue-600 hover:text-blue-700 font-medium">
+                Sign up
+              </Link>
+            </p>
+          </div>
         </form>
       </div>
     </div>

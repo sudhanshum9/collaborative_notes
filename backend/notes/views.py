@@ -40,10 +40,15 @@ class CategoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Category.objects.filter(user=self.request.user)
+        return Category.objects.filter(users=self.request.user)  # Use the appropriate field name
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        # First, save the category instance without the ManyToMany field
+        category = serializer.save()
+        
+        # Then, add the user to the category's ManyToMany relationship
+        category.users.add(self.request.user)
+
     
 class NoteViewSet(viewsets.ModelViewSet):
     queryset = Note.objects.all()
@@ -63,12 +68,10 @@ class NoteViewSet(viewsets.ModelViewSet):
         note = self.get_object()
         
         # Handle category creation/assignment
-        category_name = request.data.get('category')
-        if category_name:
-            category, created = Category.objects.get_or_create(
-                name=category_name,
-                user=request.user
-            )
+        category_id = request.data.get('category')
+        if category_id:
+            category = Category.objects.get(id=category_id)
+            category.users.add(request.user)  # Ensure the user is associated with the category
             request.data['category'] = category.id
             
         serializer = self.get_serializer(note, data=request.data, partial=True)
@@ -92,6 +95,24 @@ class NoteViewSet(viewsets.ModelViewSet):
         print("Broadcasted note update to notes_room:", updated_note)
 
         return Response(updated_note, status=status.HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        note = self.get_object()
+        note_id = note.id
+        note.delete()
+
+        # Broadcast deletion via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "notes_room",
+            {
+                "type": "note_deleted",
+                "id": note_id,
+                "title": None,
+                "content": None,
+            }
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
     
     def perform_create(self, serializer):
         """
@@ -105,35 +126,89 @@ class NoteViewSet(viewsets.ModelViewSet):
         
         if category_id:
             # Get or create category for the user
-            category, created = Category.objects.get_or_create(
-                id=category_id,
-                user=self.request.user
-            )
+            category = Category.objects.get(id=category_id)
+            category.users.add(self.request.user)  # Add the user to the category's users
             # Save note with user and category
-            serializer.save(user=self.request.user, category=category)
+            note = serializer.save(user=self.request.user, category=category)
         else:
             # Save note with just the user if no category provided
-            serializer.save(user=self.request.user)
+            note = serializer.save(user=self.request.user)
 
+        # Broadcast new note via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "notes_room",
+            {
+                "type": "update",
+                "id": note.id,
+                "title": note.title,
+                "content": note.content,
+            }
+        )
+    
     @action(detail=True, methods=['post'])
     def share_with_team(self, request, pk=None):
         note = self.get_object()
         team_id = request.data.get('team_id')
+        
         try:
             team = Team.objects.get(id=team_id)
-            note.shared_with_teams.add(team)
+            note.shared_with_teams.add(team)  # Share the note with the team
+
+            # If the note has a category, ensure each team member is associated with it
+            if note.category:
+                for member in team.members.all():
+                    note.shared_with_users.add(member)  # Add each team member to shared_with_users
+                    category, created = Category.objects.get_or_create(name=note.category.name)
+                    # Add the member to the category's users if not already added
+                    category.users.add(member)
+
+            # Broadcast share update via WebSocket
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                "notes_room",
+                {
+                    "type": "share_update",
+                    "note_id": note.id,
+                    "team_id": team.id,
+                    "action": "shared_with_team"
+                }
+            )
+
             return Response({"message": f"Note shared with team {team.name}"}, status=status.HTTP_200_OK)
+
         except Team.DoesNotExist:
             return Response({"error": "Team not found"}, status=status.HTTP_404_NOT_FOUND)
-        
+
     @action(detail=True, methods=['post'])
     def share_with_user(self, request, pk=None):
         note = self.get_object()
         user_id = request.data.get('user_id')
+        
         try:
             user = User.objects.get(id=user_id)
-            note.shared_with_users.add(user)
+            note.shared_with_users.add(user)  # Share the note with the specific user
+
+            # If the note has a category, ensure the user is associated with it
+            if note.category:
+                category, created = Category.objects.get_or_create(name=note.category.name)
+                # Add the user to the category's users if not already added
+                category.users.add(user)
+
+            # Broadcast share update via WebSocket
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                "notes_room",
+                {
+                    "type": "share_update",
+                    "note_id": note.id,
+                    "user_id": user.id,
+                    "action": "shared_with_user"
+                }
+            )
+
             return Response({"message": f"Note shared with user {user.username}"}, status=status.HTTP_200_OK)
+
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -176,6 +251,20 @@ class TeamViewSet(viewsets.ModelViewSet):
         # Create a new invitation
         invitation = Invitation.objects.create(team=team, invited_by=request.user, email=email)
         serializer = InvitationSerializer(invitation)
+
+        # Broadcast invitation via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "notes_room",
+            {
+                "type": "invitation_update",
+                "invitation_id": invitation.id,
+                "team_id": team.id,
+                "email": email,
+                "action": "new_invitation"
+            }
+        )
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class InvitationViewSet(viewsets.ModelViewSet):
@@ -201,5 +290,18 @@ class InvitationViewSet(viewsets.ModelViewSet):
         # Mark the invitation as accepted
         invitation.accepted = True
         invitation.save()
+
+        # Broadcast invitation acceptance via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "notes_room",
+            {
+                "type": "invitation_update",
+                "invitation_id": invitation.id,
+                "team_id": team.id,
+                "email": invitation.email,
+                "action": "invitation_accepted"
+            }
+        )
         
         return Response({"message": "Invitation accepted and user added to the team"}, status=status.HTTP_200_OK)
